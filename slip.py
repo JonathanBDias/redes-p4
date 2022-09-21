@@ -1,3 +1,4 @@
+pedaco = b''
 class CamadaEnlace:
     ignore_checksum = False
 
@@ -51,6 +52,10 @@ class Enlace:
         # TODO: Preencha aqui com o código para enviar o datagrama pela linha
         # serial, fazendo corretamente a delimitação de quadros e o escape de
         # sequências especiais, de acordo com o protocolo CamadaEnlace (RFC 1055).
+        datagrama=datagrama.replace(b'\xdb', b'\xdb\xdd')
+        datagrama=datagrama.replace(b'\xc0', b'\xdb\xdc')
+        datagrama = b'\xc0' + datagrama + b'\xc0'
+        self.linha_serial.enviar(datagrama)
         pass
 
     def __raw_recv(self, dados):
@@ -61,4 +66,26 @@ class Enlace:
         # vir quebrado de várias formas diferentes - por exemplo, podem vir
         # apenas pedaços de um quadro, ou um pedaço de quadro seguido de um
         # pedaço de outro, ou vários quadros de uma vez só.
-        pass
+        global pedaco
+        dados = pedaco + dados
+        if dados != b'':
+            realDados = dados.split(b'\xc0')
+            realTam = len(realDados)
+            if dados.endswith(b'\xc0'):
+                pedaco = b''
+            else:
+                pedaco = realDados[realTam-1]    
+            
+            for j in range(len(realDados)-1):
+                realDados[j]=realDados[j].replace(b'\xdb\xdc',b'\xc0')   
+                realDados[j]=realDados[j].replace( b'\xdb\xdd',b'\xdb')
+                 
+                if realDados[j] != b'':
+                    try:
+                        self.callback(realDados[j])
+                    except:
+                    # ignora a exceção, mas mostra na tela
+                        import traceback
+                        traceback.print_exc()
+                    finally:   
+                        dados = b''
